@@ -1,3 +1,20 @@
 spring:
   application:
     name: smart-home-automation-system
+  profiles:
+    active: dev
+  jackson:
+    time-zone: UTC
+    date-format: com.smarthome.util.ISO8601DateFormat
+
+
+server:
+  servlet:
+    context-path: /api/v1
+  port: 8080
+
+
+logging:
+  level:
+    com.shas.smart_home_automation_system: DEBUG
+    org.springframework.security: DEBUG
