@@ -7,49 +7,74 @@ import com.shas.smart_home_automation_system.exceptions.ResourceNotFoundExceptio
 import com.shas.smart_home_automation_system.repository.HomeRepository;
 import com.shas.smart_home_automation_system.repository.UserRepository;
 import com.shas.smart_home_automation_system.service.HomeService;
+import com.shas.smart_home_automation_system.util.CacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheConfig;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
+import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@CacheConfig(cacheNames = "homes")
 public class HomeServiceImpl implements HomeService {
 
     private final HomeRepository homeRepository;
     private final UserRepository userRepository;
+    private final CacheService cacheService;
+    private final ModelMapper modelMapper;
+
+    private static final String CACHE_NAME = "homes";
+    private static final long CACHE_TTL = 10;
+    private static final TimeUnit TIME_UNIT = TimeUnit.MINUTES;
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(key = "'userHomes:' + #userId")
     public List<HomeDto> getUserHomes(Long userId) {
+        String cacheKey = "userHomes:" + userId;
+
+        @SuppressWarnings("unchecked")
+        List<HomeDto> cachedHomes = cacheService.get(CACHE_NAME, cacheKey, List.class);
+        if (cachedHomes != null) {
+            log.info("Returning homes from cache for userId: {}", userId);
+            return cachedHomes;
+        }
+
         log.info("Fetching homes from DB for userId: {}", userId);
-        return homeRepository.findByUserId(userId)
+        List<HomeDto> homes = homeRepository.findByUserId(userId)
                 .stream()
                 .map(this::convertToDto)
                 .toList();
+
+        cacheService.put(CACHE_NAME, cacheKey, homes, CACHE_TTL, TIME_UNIT);
+        return homes;
     }
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(key = "'home:' + #homeId + ':user:' + #userId")
     public HomeDto getHomeById(Long homeId, Long userId) {
-        log.info("Fetching home {} for user {}", homeId, userId);
+        String cacheKey = "home:" + homeId + ":user:" + userId;
+
+        HomeDto cachedHome = cacheService.get(CACHE_NAME, cacheKey, HomeDto.class);
+        if (cachedHome != null) {
+            log.info("Returning home {} for user {} from cache", homeId, userId);
+            return cachedHome;
+        }
+
+        log.info("Fetching home {} for user {} from DB", homeId, userId);
         Home home = homeRepository.findByIdAndUserId(homeId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Home not found with id: " + homeId));
-        return convertToDto(home);
+
+        HomeDto homeDto = convertToDto(home);
+
+        cacheService.put(CACHE_NAME, cacheKey, homeDto, CACHE_TTL, TIME_UNIT);
+        return homeDto;
     }
 
     @Override
-    @CacheEvict(key = "'userHomes:' + #userId", allEntries = true)
     public HomeDto createHome(HomeDto homeDto, Long userId) {
         log.info("Creating new home for userId: {}", userId);
         User user = userRepository.findById(userId)
@@ -62,14 +87,14 @@ public class HomeServiceImpl implements HomeService {
         home.setUser(user);
 
         Home savedHome = homeRepository.save(home);
-        return convertToDto(savedHome);
+        HomeDto savedDto = convertToDto(savedHome);
+
+        cacheService.evict(CACHE_NAME, "userHomes:" + userId);
+
+        return savedDto;
     }
 
     @Override
-    @Caching(evict = {
-            @CacheEvict(key = "'home:' + #homeId + ':user:' + #userId"),
-            @CacheEvict(key = "'userHomes:' + #userId")
-    })
     public HomeDto updateHome(Long homeId, HomeDto homeDto, Long userId) {
         log.info("Updating home {} for user {}", homeId, userId);
         Home home = homeRepository.findByIdAndUserId(homeId, userId)
@@ -79,29 +104,29 @@ public class HomeServiceImpl implements HomeService {
         home.setAddress(homeDto.getAddress());
         home.setTimezone(homeDto.getTimezone());
 
-        return convertToDto(homeRepository.save(home));
+        Home updatedHome = homeRepository.save(home);
+        HomeDto updatedDto = convertToDto(updatedHome);
+
+        // ✅ Update home cache and evict user's homes list
+        cacheService.put(CACHE_NAME, "home:" + homeId + ":user:" + userId, updatedDto, CACHE_TTL, TIME_UNIT);
+        cacheService.evict(CACHE_NAME, "userHomes:" + userId);
+
+        return updatedDto;
     }
 
     @Override
-    @Caching(evict = {
-            @CacheEvict(key = "'home:' + #homeId + ':user:' + #userId"),
-            @CacheEvict(key = "'userHomes:' + #userId")
-    })
     public void deleteHome(Long homeId, Long userId) {
         log.info("Deleting home {} for user {}", homeId, userId);
         Home home = homeRepository.findByIdAndUserId(homeId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Home not found with id: " + homeId));
+
         homeRepository.delete(home);
+
+        cacheService.evict(CACHE_NAME, "home:" + homeId + ":user:" + userId);
+        cacheService.evict(CACHE_NAME, "userHomes:" + userId);
     }
 
     private HomeDto convertToDto(Home home) {
-        return HomeDto.builder()
-                .id(home.getId())
-                .name(home.getName())
-                .address(home.getAddress())
-                .timezone(home.getTimezone())
-                .userId(home.getUser().getId())
-                .createdAt(home.getCreatedAt())
-                .build();
+        return modelMapper.map(home, HomeDto.class);
     }
 }

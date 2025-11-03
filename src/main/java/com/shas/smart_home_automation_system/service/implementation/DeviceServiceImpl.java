@@ -4,20 +4,19 @@ import com.shas.smart_home_automation_system.dto.DeviceDto;
 import com.shas.smart_home_automation_system.entity.Device;
 import com.shas.smart_home_automation_system.entity.Home;
 import com.shas.smart_home_automation_system.enums.DeviceStatus;
-import com.shas.smart_home_automation_system.enums.DeviceType;
 import com.shas.smart_home_automation_system.exceptions.ResourceNotFoundException;
 import com.shas.smart_home_automation_system.repository.DeviceRepository;
 import com.shas.smart_home_automation_system.repository.HomeRepository;
 import com.shas.smart_home_automation_system.service.DeviceService;
+import com.shas.smart_home_automation_system.util.CacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.CachePut;
-import org.springframework.cache.annotation.Cacheable;
+import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -26,29 +25,57 @@ public class DeviceServiceImpl implements DeviceService {
 
     private final DeviceRepository deviceRepository;
     private final HomeRepository homeRepository;
+    private final CacheService cacheService;
+    private final ModelMapper modelMapper;
+
+    private static final String DEVICES_USER_CACHE = "devices_user";
+    private static final String DEVICES_HOME_CACHE = "devices_home";
+    private static final String DEVICE_CACHE = "device";
+    private static final String POWER_CONSUMPTION_CACHE = "power_consumption";
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "devices_user", key = "#userId")
     public List<DeviceDto> getUserDevices(Long userId) {
         log.info("Fetching all devices for userId: {}", userId);
-        return deviceRepository.findByHomeUserId(userId).stream()
+
+        @SuppressWarnings("unchecked")
+        List<DeviceDto> cachedDevices = cacheService.get(DEVICES_USER_CACHE, userId.toString(), List.class);
+        if (cachedDevices != null) {
+            log.info("Cache hit for user devices: {}", userId);
+            return cachedDevices;
+        }
+
+        List<DeviceDto> devices = deviceRepository.findByHomeUserId(userId).stream()
                 .map(this::convertToDto)
                 .toList();
+
+        cacheService.put(DEVICES_USER_CACHE, userId.toString(), devices, 30, TimeUnit.MINUTES);
+
+        return devices;
     }
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "devices_home", key = "#homeId")
     public List<DeviceDto> getHomeDevices(Long homeId, Long userId) {
         log.info("Fetching all devices for homeId: {} and userId: {}", homeId, userId);
-        return deviceRepository.findByHomeIdAndHomeUserId(homeId, userId).stream()
+
+        @SuppressWarnings("unchecked")
+        List<DeviceDto> cachedDevices = cacheService.get(DEVICES_HOME_CACHE, homeId.toString(), List.class);
+        if (cachedDevices != null) {
+            log.info("Cache hit for home devices: {}", homeId);
+            return cachedDevices;
+        }
+
+        List<DeviceDto> devices = deviceRepository.findByHomeIdAndHomeUserId(homeId, userId).stream()
                 .map(this::convertToDto)
                 .toList();
+
+        cacheService.put(DEVICES_HOME_CACHE, homeId.toString(), devices, 30, TimeUnit.MINUTES);
+
+        return devices;
     }
 
     @Override
-    @CacheEvict(value = { "devices_user", "devices_home" }, allEntries = true)
     public DeviceDto createDevice(DeviceDto deviceDto, Long userId) {
         try {
             Home home = homeRepository.findByIdAndUserId(deviceDto.getHomeId(), userId)
@@ -57,7 +84,7 @@ public class DeviceServiceImpl implements DeviceService {
             Device device = new Device();
             device.setName(deviceDto.getName());
             device.setDeviceId(deviceDto.getDeviceId());
-            device.setType(DeviceType.valueOf(deviceDto.getType()));
+            device.setType(deviceDto.getType());
             device.setStatus(DeviceStatus.OFFLINE);
             device.setHome(home);
             device.setManufacturer(deviceDto.getManufacturer());
@@ -66,7 +93,13 @@ public class DeviceServiceImpl implements DeviceService {
 
             Device savedDevice = deviceRepository.save(device);
             log.info("Device created successfully with ID: {}", savedDevice.getId());
+
+            cacheService.evictPattern(DEVICES_USER_CACHE, "*");
+            cacheService.evictPattern(DEVICES_HOME_CACHE, "*");
+            cacheService.evictPattern(POWER_CONSUMPTION_CACHE, "*");
+
             return convertToDto(savedDevice);
+
         } catch (Exception e) {
             log.error("Error creating device: {}", e.getMessage());
             throw e;
@@ -74,8 +107,6 @@ public class DeviceServiceImpl implements DeviceService {
     }
 
     @Override
-    @CachePut(value = "device", key = "#deviceId")
-    @CacheEvict(value = { "devices_user", "devices_home" }, allEntries = true)
     public DeviceDto updateDeviceStatus(Long deviceId, DeviceStatus status, Long userId) {
         try {
             Device device = deviceRepository.findById(deviceId)
@@ -88,7 +119,16 @@ public class DeviceServiceImpl implements DeviceService {
             device.setStatus(status);
             Device updatedDevice = deviceRepository.save(device);
             log.info("Updated status for device {} to {}", deviceId, status);
-            return convertToDto(updatedDevice);
+
+            DeviceDto dto = convertToDto(updatedDevice);
+
+            cacheService.put(DEVICE_CACHE, deviceId.toString(), dto, 30, TimeUnit.MINUTES);
+
+            cacheService.evictPattern(DEVICES_USER_CACHE, "*");
+            cacheService.evictPattern(DEVICES_HOME_CACHE, "*");
+            cacheService.evictPattern(POWER_CONSUMPTION_CACHE, "*");
+
+            return dto;
         } catch (Exception e) {
             log.error("Failed to update device {}: {}", deviceId, e.getMessage());
             throw e;
@@ -96,7 +136,6 @@ public class DeviceServiceImpl implements DeviceService {
     }
 
     @Override
-    @CacheEvict(value = { "device", "devices_user", "devices_home" }, allEntries = true)
     public void deleteDevice(Long deviceId, Long userId) {
         try {
             Device device = deviceRepository.findById(deviceId)
@@ -108,6 +147,12 @@ public class DeviceServiceImpl implements DeviceService {
 
             deviceRepository.delete(device);
             log.info("Deleted device with ID: {}", deviceId);
+
+            cacheService.evict(DEVICE_CACHE, deviceId.toString());
+            cacheService.evictPattern(DEVICES_USER_CACHE, "*");
+            cacheService.evictPattern(DEVICES_HOME_CACHE, "*");
+            cacheService.evictPattern(POWER_CONSUMPTION_CACHE, "*");
+
         } catch (Exception e) {
             log.error("Failed to delete device {}: {}", deviceId, e.getMessage());
             throw e;
@@ -116,28 +161,26 @@ public class DeviceServiceImpl implements DeviceService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "power_consumption", key = "#homeId")
     public Double getHomePowerConsumption(Long homeId, Long userId) {
         log.info("Fetching power consumption for homeId: {}", homeId);
+
+        Double cachedValue = cacheService.get(POWER_CONSUMPTION_CACHE, homeId.toString(), Double.class);
+        if (cachedValue != null) {
+            log.info("Cache hit for power consumption of homeId: {}", homeId);
+            return cachedValue;
+        }
+
         homeRepository.findByIdAndUserId(homeId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Home not found or access denied"));
 
-        return deviceRepository.getTotalPowerConsumptionByHome(homeId).orElse(0.0);
+        Double totalPower = deviceRepository.getTotalPowerConsumptionByHome(homeId).orElse(0.0);
+
+        cacheService.put(POWER_CONSUMPTION_CACHE, homeId.toString(), totalPower, 10, TimeUnit.MINUTES);
+
+        return totalPower;
     }
 
     private DeviceDto convertToDto(Device device) {
-        DeviceDto dto = new DeviceDto();
-        dto.setId(device.getId());
-        dto.setName(device.getName());
-        dto.setDeviceId(device.getDeviceId());
-        dto.setType(device.getType().name());
-        dto.setStatus(device.getStatus().name());
-        dto.setHomeId(device.getHome().getId());
-        dto.setRoomId(device.getRoom() != null ? device.getRoom().getId() : null);
-        dto.setManufacturer(device.getManufacturer());
-        dto.setModel(device.getModel());
-        dto.setPowerConsumption(device.getPowerConsumption());
-        dto.setCreatedAt(device.getCreatedAt());
-        return dto;
+        return modelMapper.map(device, DeviceDto.class);
     }
 }

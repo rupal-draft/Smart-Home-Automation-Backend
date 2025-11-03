@@ -5,11 +5,10 @@ import com.shas.smart_home_automation_system.entity.User;
 import com.shas.smart_home_automation_system.exceptions.ResourceNotFoundException;
 import com.shas.smart_home_automation_system.repository.UserRepository;
 import com.shas.smart_home_automation_system.service.AuthService;
+import com.shas.smart_home_automation_system.util.CacheService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -19,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -29,45 +29,64 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
+    private final CacheService cacheService;
+
+    private static final String AUTH_CACHE = "authTokens";
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "authTokens", key = "#loginRequest.username")
     public AuthDto.JwtResponse authenticateUser(@Valid AuthDto.LoginRequest loginRequest) {
-        log.info("Authenticating user: {}", loginRequest.getUsername());
+        String username = loginRequest.getUsername();
+        log.info("Authenticating user: {}", username);
+
+        AuthDto.JwtResponse cachedResponse = cacheService.get(AUTH_CACHE, username, AuthDto.JwtResponse.class);
+        if (cachedResponse != null) {
+            log.info("Returning cached JWT token for user: {}", username);
+            return cachedResponse;
+        }
+
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
-                            loginRequest.getUsername(),
-                            loginRequest.getPassword()
+                            username, loginRequest.getPassword()
                     )
             );
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
             String jwt = tokenProvider.generateToken(authentication);
 
-            User user = userRepository.findByUsername(loginRequest.getUsername())
+            User user = userRepository.findByUsername(username)
                     .orElseThrow(() -> new ResourceNotFoundException(
-                            "User not found with username: " + loginRequest.getUsername()
+                            "User not found with username: " + username
                     ));
 
-            log.info("User '{}' authenticated successfully", loginRequest.getUsername());
-            return new AuthDto.JwtResponse(jwt, user.getId(), user.getUsername(),
-                    user.getEmail(), user.getRoles());
+            AuthDto.JwtResponse jwtResponse = new AuthDto.JwtResponse(
+                    jwt,
+                    user.getId(),
+                    user.getUsername(),
+                    user.getEmail(),
+                    user.getRoles()
+            );
+
+            log.info("User '{}' authenticated successfully", username);
+
+            cacheService.put(AUTH_CACHE, username, jwtResponse, 1, TimeUnit.HOURS);
+
+            return jwtResponse;
 
         } catch (Exception e) {
-            log.error("Authentication failed for '{}': {}", loginRequest.getUsername(), e.getMessage());
+            log.error("Authentication failed for '{}': {}", username, e.getMessage());
             throw new RuntimeException("Invalid username or password");
         }
     }
 
     @Override
-    @CacheEvict(value = "authTokens", key = "#registerRequest.username")
     public AuthDto.JwtResponse registerUser(@Valid AuthDto.RegisterRequest registerRequest) {
-        log.info("Registering new user: {}", registerRequest.getUsername());
+        String username = registerRequest.getUsername();
+        log.info("Registering new user: {}", username);
 
-        if (userRepository.existsByUsername(registerRequest.getUsername())) {
-            log.warn("Registration failed: username '{}' is already taken", registerRequest.getUsername());
+        if (userRepository.existsByUsername(username)) {
+            log.warn("Registration failed: username '{}' is already taken", username);
             throw new RuntimeException("Username is already taken");
         }
 
@@ -78,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
 
         try {
             User user = new User();
-            user.setUsername(registerRequest.getUsername());
+            user.setUsername(username);
             user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
             user.setEmail(registerRequest.getEmail());
             user.setFirstName(registerRequest.getFirstName());
@@ -87,16 +106,18 @@ public class AuthServiceImpl implements AuthService {
             user.getRoles().add("ROLE_USER");
 
             userRepository.save(user);
-            log.info("User '{}' registered successfully", registerRequest.getUsername());
+            log.info("User '{}' registered successfully", username);
+
+            cacheService.evict(AUTH_CACHE, username);
 
             AuthDto.LoginRequest loginRequest = new AuthDto.LoginRequest();
-            loginRequest.setUsername(registerRequest.getUsername());
+            loginRequest.setUsername(username);
             loginRequest.setPassword(registerRequest.getPassword());
 
             return authenticateUser(loginRequest);
 
         } catch (Exception e) {
-            log.error("Registration failed for '{}': {}", registerRequest.getUsername(), e.getMessage());
+            log.error("Registration failed for '{}': {}", username, e.getMessage());
             throw new RuntimeException("User registration failed");
         }
     }

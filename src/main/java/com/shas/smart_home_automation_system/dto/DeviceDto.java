@@ -1,5 +1,7 @@
 package com.shas.smart_home_automation_system.dto;
 
+import com.shas.smart_home_automation_system.enums.DeviceStatus;
+import com.shas.smart_home_automation_system.enums.DeviceType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -13,8 +15,8 @@ public class DeviceDto {
     private Long id;
     private String name;
     private String deviceId;
-    private String type;
-    private String status;
+    private DeviceType type;
+    private DeviceStatus status;
     private Long homeId;
     private Long roomId;
     private String manufacturer;
