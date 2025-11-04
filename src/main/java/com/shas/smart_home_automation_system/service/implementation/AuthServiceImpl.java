@@ -2,23 +2,20 @@ package com.shas.smart_home_automation_system.service.implementation;
 
 import com.shas.smart_home_automation_system.dto.AuthDto;
 import com.shas.smart_home_automation_system.entity.User;
-import com.shas.smart_home_automation_system.exceptions.ResourceNotFoundException;
 import com.shas.smart_home_automation_system.repository.UserRepository;
+import com.shas.smart_home_automation_system.security.JwtService;
 import com.shas.smart_home_automation_system.service.AuthService;
-import com.shas.smart_home_automation_system.util.CacheService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -28,22 +25,13 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtTokenProvider tokenProvider;
-    private final CacheService cacheService;
-
-    private static final String AUTH_CACHE = "authTokens";
+    private final JwtService jwtService;
 
     @Override
     @Transactional(readOnly = true)
     public AuthDto.JwtResponse authenticateUser(@Valid AuthDto.LoginRequest loginRequest) {
         String username = loginRequest.getUsername();
         log.info("Authenticating user: {}", username);
-
-        AuthDto.JwtResponse cachedResponse = cacheService.get(AUTH_CACHE, username, AuthDto.JwtResponse.class);
-        if (cachedResponse != null) {
-            log.info("Returning cached JWT token for user: {}", username);
-            return cachedResponse;
-        }
 
         try {
             Authentication authentication = authenticationManager.authenticate(
@@ -52,16 +40,12 @@ public class AuthServiceImpl implements AuthService {
                     )
             );
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            String jwt = tokenProvider.generateToken(authentication);
+            User user = (User) authentication.getPrincipal();
 
-            User user = userRepository.findByUsername(username)
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "User not found with username: " + username
-                    ));
+            String accessToken = jwtService.generateAccessKey(user);
 
             AuthDto.JwtResponse jwtResponse = new AuthDto.JwtResponse(
-                    jwt,
+                    accessToken,
                     user.getId(),
                     user.getUsername(),
                     user.getEmail(),
@@ -69,8 +53,6 @@ public class AuthServiceImpl implements AuthService {
             );
 
             log.info("User '{}' authenticated successfully", username);
-
-            cacheService.put(AUTH_CACHE, username, jwtResponse, 1, TimeUnit.HOURS);
 
             return jwtResponse;
 
@@ -107,8 +89,6 @@ public class AuthServiceImpl implements AuthService {
 
             userRepository.save(user);
             log.info("User '{}' registered successfully", username);
-
-            cacheService.evict(AUTH_CACHE, username);
 
             AuthDto.LoginRequest loginRequest = new AuthDto.LoginRequest();
             loginRequest.setUsername(username);

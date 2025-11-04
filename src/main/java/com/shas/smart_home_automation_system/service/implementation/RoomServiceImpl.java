@@ -3,7 +3,6 @@ package com.shas.smart_home_automation_system.service.implementation;
 import com.shas.smart_home_automation_system.dto.RoomDto;
 import com.shas.smart_home_automation_system.entity.Home;
 import com.shas.smart_home_automation_system.entity.Room;
-import com.shas.smart_home_automation_system.enums.RoomType;
 import com.shas.smart_home_automation_system.exceptions.ResourceNotFoundException;
 import com.shas.smart_home_automation_system.repository.HomeRepository;
 import com.shas.smart_home_automation_system.repository.RoomRepository;

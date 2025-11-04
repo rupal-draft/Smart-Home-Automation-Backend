@@ -9,6 +9,9 @@ import com.shas.smart_home_automation_system.util.CacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +26,20 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final CacheService cacheService;
     private final ModelMapper modelMapper;
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        return userRepository
+                .findByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+    }
+
+    @Override
+    public User getUserFromId(Long userId) {
+        return userRepository
+                .findById(userId)
+                .orElseThrow(()-> new AuthenticationCredentialsNotFoundException("User not found!"));
+    }
 
     @Override
     @Transactional(readOnly = true)
