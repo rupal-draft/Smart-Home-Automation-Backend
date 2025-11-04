@@ -4,7 +4,6 @@ import com.shas.smart_home_automation_system.dto.UserDto;
 import com.shas.smart_home_automation_system.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,7 +16,7 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping
-    public ResponseEntity<List<UserDto>> getAllUsers(@AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<List<UserDto>> getAllUsers() {
         List<UserDto> users = userService.getAllUsers();
         return ResponseEntity.ok(users);
     }
@@ -28,19 +27,10 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-    @GetMapping("/profile")
-    public ResponseEntity<UserDto> getCurrentUserProfile(@AuthenticationPrincipal UserDetails userDetails) {
-        Long userId = getUserIdFromUserDetails(userDetails);
-        UserDto user = userService.getUserById(userId);
-        return ResponseEntity.ok(user);
-    }
-
     @PutMapping("/profile")
     public ResponseEntity<UserDto> updateCurrentUserProfile(
-            @RequestBody UserDto userDto,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        Long userId = getUserIdFromUserDetails(userDetails);
-        UserDto updatedUser = userService.updateUser(userId, userDto);
+            @RequestBody UserDto userDto) {
+        UserDto updatedUser = userService.updateUser(userDto);
         return ResponseEntity.ok(updatedUser);
     }
 
@@ -48,11 +38,5 @@ public class UserController {
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
-    }
-
-    private Long getUserIdFromUserDetails(UserDetails userDetails) {
-        // Implementation depends on how you store user ID in UserDetails
-        // This is a placeholder - you need to implement based on your UserDetails implementation
-        return 1L;
     }
 }

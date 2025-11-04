@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -71,18 +72,35 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDto updateUser(Long id, UserDto userDto) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
-        user.setFirstName(userDto.getFirstName());
-        user.setLastName(userDto.getLastName());
-        user.setEmail(userDto.getEmail());
+    public UserDto updateUser(UserDto userDto) {
+        User currentUser = (User) SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getPrincipal();
+
+        User user = userRepository.findById(currentUser.getId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User not found with id: " + currentUser.getId()));
+
+        if (userDto.getFirstName() != null) user.setFirstName(userDto.getFirstName());
+        if (userDto.getLastName() != null) user.setLastName(userDto.getLastName());
+
+        if (userDto.getEmail() != null && !userDto.getEmail().equals(user.getEmail())) {
+            if (userRepository.existsByEmail(userDto.getEmail())) {
+                throw new IllegalArgumentException("Email is already in use");
+            }
+            user.setEmail(userDto.getEmail());
+        }
+
         User updatedUser = userRepository.save(user);
         UserDto dto = convertToDto(updatedUser);
-        cacheService.put("user", id.toString(), dto, 10, TimeUnit.MINUTES);
+
+        cacheService.put("user", String.valueOf(currentUser.getId()), dto, 10, TimeUnit.MINUTES);
         cacheService.evict("users", "all");
+
         return dto;
     }
+
 
     @Override
     public void deleteUser(Long id) {
