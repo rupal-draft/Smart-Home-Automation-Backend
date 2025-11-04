@@ -49,14 +49,16 @@ public class AuthDto {
     @NoArgsConstructor
     public static class JwtResponse {
         private String token;
+        private String refreshToken;
         private String type = "Bearer";
         private Long id;
         private String username;
         private String email;
         private Set<String> roles;
 
-        public JwtResponse(String token, Long id, String username, String email, Set<String> roles) {
+        public JwtResponse(String token, String refreshToken, Long id, String username, String email, Set<String> roles) {
             this.token = token;
+            this.refreshToken = refreshToken;
             this.id = id;
             this.username = username;
             this.email = email;

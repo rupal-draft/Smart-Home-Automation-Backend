@@ -7,4 +7,6 @@ public interface AuthService {
     AuthDto.JwtResponse authenticateUser(AuthDto.LoginRequest loginRequest);
 
     AuthDto.JwtResponse registerUser(AuthDto.RegisterRequest registerRequest);
+
+    AuthDto.JwtResponse refreshToken(String refreshToken);
 }

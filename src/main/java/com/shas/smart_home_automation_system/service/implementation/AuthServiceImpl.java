@@ -5,9 +5,11 @@ import com.shas.smart_home_automation_system.entity.User;
 import com.shas.smart_home_automation_system.repository.UserRepository;
 import com.shas.smart_home_automation_system.security.JwtService;
 import com.shas.smart_home_automation_system.service.AuthService;
+import com.shas.smart_home_automation_system.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -26,6 +28,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final UserService userService;
 
     @Override
     @Transactional(readOnly = true)
@@ -43,9 +46,11 @@ public class AuthServiceImpl implements AuthService {
             User user = (User) authentication.getPrincipal();
 
             String accessToken = jwtService.generateAccessKey(user);
+            String refreshToken = jwtService.generateRefreshJwtToken(user);
 
             AuthDto.JwtResponse jwtResponse = new AuthDto.JwtResponse(
                     accessToken,
+                    refreshToken,
                     user.getId(),
                     user.getUsername(),
                     user.getEmail(),
@@ -100,5 +105,27 @@ public class AuthServiceImpl implements AuthService {
             log.error("Registration failed for '{}': {}", username, e.getMessage());
             throw new RuntimeException("User registration failed");
         }
+    }
+
+    @Override
+    public AuthDto.JwtResponse refreshToken(String refreshToken) {
+        Long userId = jwtService.getUserId(refreshToken);
+        User user = userService.getUserFromId(userId);
+        if(user == null) throw new AuthenticationCredentialsNotFoundException("User not found");
+
+        String accessToken = jwtService.generateAccessKey(user);
+
+        AuthDto.JwtResponse jwtResponse = new AuthDto.JwtResponse(
+                accessToken,
+                refreshToken,
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getRoles()
+        );
+
+        log.info("Refresh token generated successfully for userId: {}", userId);
+
+        return jwtResponse;
     }
 }
