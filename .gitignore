@@ -55,7 +55,6 @@ local.properties
 
 # Database
 *.db
-*.sql
 
 # OS
 .DS_Store
