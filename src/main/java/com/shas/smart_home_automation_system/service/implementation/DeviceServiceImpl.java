@@ -3,6 +3,7 @@ package com.shas.smart_home_automation_system.service.implementation;
 import com.shas.smart_home_automation_system.dto.DeviceDto;
 import com.shas.smart_home_automation_system.entity.Device;
 import com.shas.smart_home_automation_system.entity.Home;
+import com.shas.smart_home_automation_system.entity.User;
 import com.shas.smart_home_automation_system.enums.DeviceStatus;
 import com.shas.smart_home_automation_system.exceptions.ResourceNotFoundException;
 import com.shas.smart_home_automation_system.repository.DeviceRepository;
@@ -12,6 +13,7 @@ import com.shas.smart_home_automation_system.util.CacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,9 +35,15 @@ public class DeviceServiceImpl implements DeviceService {
     private static final String DEVICE_CACHE = "device";
     private static final String POWER_CONSUMPTION_CACHE = "power_consumption";
 
+    private User getAuthenticatedUser() {
+        return (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    }
+
     @Override
     @Transactional(readOnly = true)
-    public List<DeviceDto> getUserDevices(Long userId) {
+    public List<DeviceDto> getUserDevices() {
+        User user = getAuthenticatedUser();
+        Long userId = user.getId();
         log.info("Fetching all devices for userId: {}", userId);
 
         @SuppressWarnings("unchecked")
@@ -45,18 +53,19 @@ public class DeviceServiceImpl implements DeviceService {
             return cachedDevices;
         }
 
-        List<DeviceDto> devices = deviceRepository.findByHomeUserId(userId).stream()
+        List<DeviceDto> devices = deviceRepository.findByHomeUser(user).stream()
                 .map(this::convertToDto)
                 .toList();
 
         cacheService.put(DEVICES_USER_CACHE, userId.toString(), devices, 30, TimeUnit.MINUTES);
-
         return devices;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<DeviceDto> getHomeDevices(Long homeId, Long userId) {
+    public List<DeviceDto> getHomeDevices(Long homeId) {
+        User user = getAuthenticatedUser();
+        Long userId = user.getId();
         log.info("Fetching all devices for homeId: {} and userId: {}", homeId, userId);
 
         @SuppressWarnings("unchecked")
@@ -66,103 +75,96 @@ public class DeviceServiceImpl implements DeviceService {
             return cachedDevices;
         }
 
-        List<DeviceDto> devices = deviceRepository.findByHomeIdAndHomeUserId(homeId, userId).stream()
+        List<DeviceDto> devices = deviceRepository.findByHomeIdAndHomeUser(homeId, user).stream()
                 .map(this::convertToDto)
                 .toList();
 
         cacheService.put(DEVICES_HOME_CACHE, homeId.toString(), devices, 30, TimeUnit.MINUTES);
-
         return devices;
     }
 
     @Override
-    public DeviceDto createDevice(DeviceDto deviceDto, Long userId) {
-        try {
-            Home home = homeRepository.findByIdAndUserId(deviceDto.getHomeId(), userId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Home not found or access denied"));
+    public DeviceDto createDevice(DeviceDto deviceDto) {
+        User user = getAuthenticatedUser();
+        Long userId = user.getId();
+        log.info("Creating device for userId: {}", userId);
 
-            Device device = new Device();
-            device.setName(deviceDto.getName());
-            device.setDeviceId(deviceDto.getDeviceId());
-            device.setType(deviceDto.getType());
-            device.setStatus(DeviceStatus.OFFLINE);
-            device.setHome(home);
-            device.setManufacturer(deviceDto.getManufacturer());
-            device.setModel(deviceDto.getModel());
-            device.setPowerConsumption(deviceDto.getPowerConsumption());
+        Home home = homeRepository.findByIdAndUser(deviceDto.getHomeId(), user)
+                .orElseThrow(() -> new ResourceNotFoundException("Home not found or access denied"));
 
-            Device savedDevice = deviceRepository.save(device);
-            log.info("Device created successfully with ID: {}", savedDevice.getId());
+        Device device = new Device();
+        device.setName(deviceDto.getName());
+        device.setDeviceId(deviceDto.getDeviceId());
+        device.setType(deviceDto.getType());
+        device.setStatus(DeviceStatus.OFFLINE);
+        device.setHome(home);
+        device.setManufacturer(deviceDto.getManufacturer());
+        device.setModel(deviceDto.getModel());
+        device.setPowerConsumption(deviceDto.getPowerConsumption());
 
-            cacheService.evictPattern(DEVICES_USER_CACHE, "*");
-            cacheService.evictPattern(DEVICES_HOME_CACHE, "*");
-            cacheService.evictPattern(POWER_CONSUMPTION_CACHE, "*");
+        Device savedDevice = deviceRepository.save(device);
+        log.info("Device created successfully with ID: {}", savedDevice.getId());
 
-            return convertToDto(savedDevice);
+        cacheService.evictPattern(DEVICES_USER_CACHE, "*");
+        cacheService.evictPattern(DEVICES_HOME_CACHE, "*");
+        cacheService.evictPattern(POWER_CONSUMPTION_CACHE, "*");
 
-        } catch (Exception e) {
-            log.error("Error creating device: {}", e.getMessage());
-            throw e;
-        }
+        return convertToDto(savedDevice);
     }
 
     @Override
-    public DeviceDto updateDeviceStatus(Long deviceId, DeviceStatus status, Long userId) {
-        try {
-            Device device = deviceRepository.findById(deviceId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
+    public DeviceDto updateDeviceStatus(Long deviceId, DeviceStatus status) {
+        User user = getAuthenticatedUser();
+        Long userId = user.getId();
+        log.info("Updating device status for deviceId: {} and userId: {}", deviceId, userId);
 
-            if (!device.getHome().getUser().getId().equals(userId)) {
-                throw new ResourceNotFoundException("Device not found or access denied");
-            }
+        Device device = deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
 
-            device.setStatus(status);
-            Device updatedDevice = deviceRepository.save(device);
-            log.info("Updated status for device {} to {}", deviceId, status);
-
-            DeviceDto dto = convertToDto(updatedDevice);
-
-            cacheService.put(DEVICE_CACHE, deviceId.toString(), dto, 30, TimeUnit.MINUTES);
-
-            cacheService.evictPattern(DEVICES_USER_CACHE, "*");
-            cacheService.evictPattern(DEVICES_HOME_CACHE, "*");
-            cacheService.evictPattern(POWER_CONSUMPTION_CACHE, "*");
-
-            return dto;
-        } catch (Exception e) {
-            log.error("Failed to update device {}: {}", deviceId, e.getMessage());
-            throw e;
+        if (!device.getHome().getUser().equals(user)) {
+            throw new ResourceNotFoundException("Device not found or access denied");
         }
+
+        device.setStatus(status);
+        Device updatedDevice = deviceRepository.save(device);
+        DeviceDto dto = convertToDto(updatedDevice);
+
+        cacheService.put(DEVICE_CACHE, deviceId.toString(), dto, 30, TimeUnit.MINUTES);
+        cacheService.evictPattern(DEVICES_USER_CACHE, "*");
+        cacheService.evictPattern(DEVICES_HOME_CACHE, "*");
+        cacheService.evictPattern(POWER_CONSUMPTION_CACHE, "*");
+
+        return dto;
     }
 
     @Override
-    public void deleteDevice(Long deviceId, Long userId) {
-        try {
-            Device device = deviceRepository.findById(deviceId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
+    public void deleteDevice(Long deviceId) {
+        User user = getAuthenticatedUser();
+        Long userId = user.getId();
+        log.info("Deleting device with ID: {} for userId: {}", deviceId, userId);
 
-            if (!device.getHome().getUser().getId().equals(userId)) {
-                throw new ResourceNotFoundException("Device not found or access denied");
-            }
+        Device device = deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
 
-            deviceRepository.delete(device);
-            log.info("Deleted device with ID: {}", deviceId);
-
-            cacheService.evict(DEVICE_CACHE, deviceId.toString());
-            cacheService.evictPattern(DEVICES_USER_CACHE, "*");
-            cacheService.evictPattern(DEVICES_HOME_CACHE, "*");
-            cacheService.evictPattern(POWER_CONSUMPTION_CACHE, "*");
-
-        } catch (Exception e) {
-            log.error("Failed to delete device {}: {}", deviceId, e.getMessage());
-            throw e;
+        if (!device.getHome().getUser().equals(user)) {
+            throw new ResourceNotFoundException("Device not found or access denied");
         }
+
+        deviceRepository.delete(device);
+        log.info("Deleted device with ID: {}", deviceId);
+
+        cacheService.evict(DEVICE_CACHE, deviceId.toString());
+        cacheService.evictPattern(DEVICES_USER_CACHE, "*");
+        cacheService.evictPattern(DEVICES_HOME_CACHE, "*");
+        cacheService.evictPattern(POWER_CONSUMPTION_CACHE, "*");
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Double getHomePowerConsumption(Long homeId, Long userId) {
-        log.info("Fetching power consumption for homeId: {}", homeId);
+    public Double getHomePowerConsumption(Long homeId) {
+        User user = getAuthenticatedUser();
+        Long userId = user.getId();
+        log.info("Fetching power consumption for homeId: {} and userId: {}", homeId, userId);
 
         Double cachedValue = cacheService.get(POWER_CONSUMPTION_CACHE, homeId.toString(), Double.class);
         if (cachedValue != null) {
@@ -170,13 +172,12 @@ public class DeviceServiceImpl implements DeviceService {
             return cachedValue;
         }
 
-        homeRepository.findByIdAndUserId(homeId, userId)
+        homeRepository.findByIdAndUser(homeId, user)
                 .orElseThrow(() -> new ResourceNotFoundException("Home not found or access denied"));
 
         Double totalPower = deviceRepository.getTotalPowerConsumptionByHome(homeId).orElse(0.0);
 
         cacheService.put(POWER_CONSUMPTION_CACHE, homeId.toString(), totalPower, 10, TimeUnit.MINUTES);
-
         return totalPower;
     }
 

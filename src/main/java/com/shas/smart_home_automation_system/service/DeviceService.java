@@ -7,15 +7,15 @@ import java.util.List;
 
 public interface DeviceService {
 
-    List<DeviceDto> getUserDevices(Long userId);
+    List<DeviceDto> getUserDevices();
 
-    List<DeviceDto> getHomeDevices(Long homeId, Long userId);
+    List<DeviceDto> getHomeDevices(Long homeId);
 
-    DeviceDto createDevice(DeviceDto deviceDto, Long userId);
+    DeviceDto createDevice(DeviceDto deviceDto);
 
-    DeviceDto updateDeviceStatus(Long deviceId, DeviceStatus status, Long userId);
+    DeviceDto updateDeviceStatus(Long deviceId, DeviceStatus status);
 
-    void deleteDevice(Long deviceId, Long userId);
+    void deleteDevice(Long deviceId);
 
-    Double getHomePowerConsumption(Long homeId, Long userId);
+    Double getHomePowerConsumption(Long homeId);
 }

@@ -1,6 +1,7 @@
 package com.shas.smart_home_automation_system.repository;
 
 import com.shas.smart_home_automation_system.entity.Device;
+import com.shas.smart_home_automation_system.entity.User;
 import com.shas.smart_home_automation_system.enums.DeviceStatus;
 import com.shas.smart_home_automation_system.enums.DeviceType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,9 +15,9 @@ import java.util.Optional;
 @Repository
 public interface DeviceRepository extends JpaRepository<Device, Long> {
 
-    List<Device> findByHomeIdAndHomeUserId(Long homeId, Long userId);
+    List<Device> findByHomeIdAndHomeUser(Long homeId, User user);
 
-    List<Device> findByHomeUserId(Long userId);
+    List<Device> findByHomeUser(User user);
 
     List<Device> findByTypeAndStatus(DeviceType type, DeviceStatus status);
 

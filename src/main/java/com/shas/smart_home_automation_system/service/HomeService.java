@@ -6,13 +6,13 @@ import java.util.List;
 
 public interface HomeService {
 
-    List<HomeDto> getUserHomes(Long userId);
+    List<HomeDto> getUserHomes();
 
-    HomeDto getHomeById(Long homeId, Long userId);
+    HomeDto getHomeById(Long homeId);
 
-    HomeDto createHome(HomeDto homeDto, Long userId);
+    HomeDto createHome(HomeDto homeDto);
 
-    HomeDto updateHome(Long homeId, HomeDto homeDto, Long userId);
+    HomeDto updateHome(Long homeId, HomeDto homeDto);
 
-    void deleteHome(Long homeId, Long userId);
+    void deleteHome(Long homeId);
 }

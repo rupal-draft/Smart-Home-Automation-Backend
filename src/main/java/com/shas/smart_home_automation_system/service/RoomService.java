@@ -6,15 +6,15 @@ import java.util.List;
 
 public interface RoomService {
 
-    List<RoomDto> getUserRooms(Long userId);
+    List<RoomDto> getUserRooms();
 
-    List<RoomDto> getHomeRooms(Long homeId, Long userId);
+    List<RoomDto> getHomeRooms(Long homeId);
 
-    RoomDto getRoomById(Long roomId, Long userId);
+    RoomDto getRoomById(Long roomId);
 
-    RoomDto createRoom(RoomDto roomDto, Long userId);
+    RoomDto createRoom(RoomDto roomDto);
 
-    RoomDto updateRoom(Long roomId, RoomDto roomDto, Long userId);
+    RoomDto updateRoom(Long roomId, RoomDto roomDto);
 
-    void deleteRoom(Long roomId, Long userId);
+    void deleteRoom(Long roomId);
 }
