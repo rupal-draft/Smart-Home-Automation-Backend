@@ -1,0 +1,92 @@
+version: "3.9"
+
+networks:
+  shas-network:
+    driver: bridge
+
+volumes:
+  pg-data:
+    driver: local
+  redis-data:
+    driver: local
+  logs:
+    driver: local
+
+
+services:
+
+  app-database:
+    container_name: shas-database
+    image: postgres:17.6-trixie
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    networks:
+      - shas-network
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  app-cache:
+    container_name: shas-cache
+    image: redis:latest
+    volumes:
+      - redis-data:/data
+    networks:
+      - shas-network
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  smart-home-app:
+    container_name: smart-home-automation-system
+    build:
+      context: .
+      dockerfile: Dockerfile
+    networks:
+      - shas-network
+    volumes:
+      - logs:/app/logs
+    depends_on:
+      app-database:
+        condition: service_healthy
+      app-cache:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    env_file:
+      - ".env"
+
+
+  nginx:
+    container_name: shas-nginx
+    image: nginx:alpine
+    depends_on:
+      smart-home-app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - shas-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+

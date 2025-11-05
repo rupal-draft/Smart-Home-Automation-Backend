@@ -1,0 +1,78 @@
+# =========================
+# Build & Maven
+# =========================
+target/
+build/
+.mvn/
+mvnw
+mvnw.cmd
+
+# =========================
+# IDE / Project Files
+# =========================
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.class
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Git & CI
+# =========================
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# =========================
+# OS / System Files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Docker / Compose
+# =========================
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# =========================
+# Tests
+# =========================
+test-output/
+surefire-reports/
+jacoco.exec
+
+# =========================
+# Node / Frontend (if present)
+# =========================
+node_modules/
+dist/
+build/
+
+# =========================
+# Sensitive Configurations
+# =========================
+.env
+.env.*
+config/
+secrets/
+certs/
+private/
+*.pem
+*.key
+*.crt
+
+# =========================
+# Misc
+# =========================
+*.tmp
+*.swp

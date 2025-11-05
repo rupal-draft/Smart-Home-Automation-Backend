@@ -1,7 +1,7 @@
 spring:
   redis:
-    host: localhost
-    port: 6379
+    host: ${SPRING_DATA_REDIS_HOST}
+    port: ${SPRING_DATA_REDIS_PORT}
     password:
     database: 0
     lettuce:
@@ -19,9 +19,9 @@ spring:
       use-key-prefix: true
       key-prefix: "smarthome:"
   datasource:
-    url: jdbc:postgresql://localhost:5432/smarthome_dev
-    username: smarthome_user
-    password: password123
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
@@ -41,8 +41,8 @@ spring:
 
 app:
   jwt:
-    secret: mySecretKeyForJWTGenerationInSmartHomeSystem2023
-    expiration: 86400000 # 24 hours
+    secret: ${JWT_SECRET}
+    expiration: 86400000
   cache:
     ttl:
       user: 2h
