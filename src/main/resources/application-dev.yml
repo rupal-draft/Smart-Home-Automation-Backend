@@ -25,6 +25,9 @@ spring:
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
+      data-source-properties:
+        currentSchema: public
+        TimeZone: Asia/Kolkata
 
   jpa:
     hibernate:
@@ -38,11 +41,12 @@ spring:
   flyway:
     locations: classpath:db/migration
     enabled: true
+    mixed: true
 
 app:
   jwt:
     secret: ${JWT_SECRET}
-    expiration: 86400000
+    expiration: 86400000 # 24 hours
   cache:
     ttl:
       user: 2h
