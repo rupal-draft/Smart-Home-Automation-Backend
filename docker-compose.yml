@@ -1,4 +1,3 @@
-version: "3.9"
 
 networks:
   shas-network:
@@ -17,7 +16,7 @@ services:
 
   app-database:
     container_name: shas-database
-    image: postgres:17.6-trixie
+    image: postgres:17-alpine
     volumes:
       - pg-data:/var/lib/postgresql/data
     networks:
@@ -27,7 +26,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      TZ: Asia/Kolkata
+      TZ: UTC
+      PGTZ: UTC
     ports:
       - "5432:5432"
     healthcheck:
@@ -83,7 +83,7 @@ services:
       - shas-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost || exit 1" ]
+      test: [ "CMD-SHELL", "curl -f http://localhost/api/v1/actuator/health || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3

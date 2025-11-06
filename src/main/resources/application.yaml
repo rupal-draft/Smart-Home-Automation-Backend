@@ -6,6 +6,11 @@ spring:
   jackson:
     time-zone: UTC
     date-format: com.smarthome.util.ISO8601DateFormat
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
 
 
 server:
@@ -17,5 +22,6 @@ server:
 
 logging:
   level:
+    root: INFO
     com.shas.smart_home_automation_system: DEBUG
     org.springframework.security: DEBUG
