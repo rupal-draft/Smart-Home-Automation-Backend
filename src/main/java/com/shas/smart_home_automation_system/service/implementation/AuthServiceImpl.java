@@ -1,6 +1,8 @@
 package com.shas.smart_home_automation_system.service.implementation;
 
-import com.shas.smart_home_automation_system.dto.AuthDto;
+import com.shas.smart_home_automation_system.dto.JwtResponseDto;
+import com.shas.smart_home_automation_system.dto.LoginRequestDto;
+import com.shas.smart_home_automation_system.dto.RegisterRequestDto;
 import com.shas.smart_home_automation_system.entity.User;
 import com.shas.smart_home_automation_system.repository.UserRepository;
 import com.shas.smart_home_automation_system.security.JwtService;
@@ -32,7 +34,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional(readOnly = true)
-    public AuthDto.JwtResponse authenticateUser(@Valid AuthDto.LoginRequest loginRequest) {
+    public JwtResponseDto authenticateUser(@Valid LoginRequestDto loginRequest) {
         String username = loginRequest.getUsername();
         log.info("Authenticating user: {}", username);
 
@@ -48,7 +50,7 @@ public class AuthServiceImpl implements AuthService {
             String accessToken = jwtService.generateAccessKey(user);
             String refreshToken = jwtService.generateRefreshJwtToken(user);
 
-            AuthDto.JwtResponse jwtResponse = new AuthDto.JwtResponse(
+            JwtResponseDto jwtResponse = new JwtResponseDto(
                     accessToken,
                     refreshToken,
                     user.getId(),
@@ -68,7 +70,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public AuthDto.JwtResponse registerUser(@Valid AuthDto.RegisterRequest registerRequest) {
+    public JwtResponseDto registerUser(@Valid RegisterRequestDto registerRequest) {
         String username = registerRequest.getUsername();
         log.info("Registering new user: {}", username);
 
@@ -95,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
             userRepository.save(user);
             log.info("User '{}' registered successfully", username);
 
-            AuthDto.LoginRequest loginRequest = new AuthDto.LoginRequest();
+            LoginRequestDto loginRequest = new LoginRequestDto();
             loginRequest.setUsername(username);
             loginRequest.setPassword(registerRequest.getPassword());
 
@@ -108,14 +110,14 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public AuthDto.JwtResponse refreshToken(String refreshToken) {
+    public JwtResponseDto refreshToken(String refreshToken) {
         Long userId = jwtService.getUserId(refreshToken);
         User user = userService.getUserFromId(userId);
         if(user == null) throw new AuthenticationCredentialsNotFoundException("User not found");
 
         String accessToken = jwtService.generateAccessKey(user);
 
-        AuthDto.JwtResponse jwtResponse = new AuthDto.JwtResponse(
+        JwtResponseDto jwtResponse = new JwtResponseDto(
                 accessToken,
                 refreshToken,
                 user.getId(),

@@ -1,12 +1,14 @@
 package com.shas.smart_home_automation_system.service;
 
-import com.shas.smart_home_automation_system.dto.AuthDto;
+import com.shas.smart_home_automation_system.dto.JwtResponseDto;
+import com.shas.smart_home_automation_system.dto.LoginRequestDto;
+import com.shas.smart_home_automation_system.dto.RegisterRequestDto;
 
 public interface AuthService {
 
-    AuthDto.JwtResponse authenticateUser(AuthDto.LoginRequest loginRequest);
+    JwtResponseDto authenticateUser(LoginRequestDto loginRequest);
 
-    AuthDto.JwtResponse registerUser(AuthDto.RegisterRequest registerRequest);
+    JwtResponseDto registerUser(RegisterRequestDto registerRequest);
 
-    AuthDto.JwtResponse refreshToken(String refreshToken);
+    JwtResponseDto refreshToken(String refreshToken);
 }

@@ -1,6 +1,8 @@
 package com.shas.smart_home_automation_system.controller;
 
-import com.shas.smart_home_automation_system.dto.AuthDto;
+import com.shas.smart_home_automation_system.dto.JwtResponseDto;
+import com.shas.smart_home_automation_system.dto.LoginRequestDto;
+import com.shas.smart_home_automation_system.dto.RegisterRequestDto;
 import com.shas.smart_home_automation_system.service.AuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,21 +26,21 @@ public class AuthController {
     private String activeProfile;
 
     @PostMapping("/login")
-    public ResponseEntity<AuthDto.JwtResponse> login(
-            @Valid @RequestBody AuthDto.LoginRequest loginRequest,
+    public ResponseEntity<JwtResponseDto> login(
+            @Valid @RequestBody LoginRequestDto loginRequest,
             HttpServletResponse response
     ) {
-        AuthDto.JwtResponse jwtResponse = authService.authenticateUser(loginRequest);
+        JwtResponseDto jwtResponse = authService.authenticateUser(loginRequest);
         addRefreshTokenCookie(response, jwtResponse.getRefreshToken());
         return ResponseEntity.ok(jwtResponse);
     }
 
     @PostMapping("/register")
-    public ResponseEntity<AuthDto.JwtResponse> register(
-            @Valid @RequestBody AuthDto.RegisterRequest registerRequest,
+    public ResponseEntity<JwtResponseDto> register(
+            @Valid @RequestBody RegisterRequestDto registerRequest,
             HttpServletResponse response
     ) {
-        AuthDto.JwtResponse jwtResponse = authService.registerUser(registerRequest);
+        JwtResponseDto jwtResponse = authService.registerUser(registerRequest);
         addRefreshTokenCookie(response, jwtResponse.getRefreshToken());
         return ResponseEntity.ok(jwtResponse);
     }
