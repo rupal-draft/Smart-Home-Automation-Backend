@@ -56,7 +56,6 @@ jacoco.exec
 # =========================
 node_modules/
 dist/
-build/
 
 # =========================
 # Sensitive Configurations

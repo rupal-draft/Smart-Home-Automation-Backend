@@ -54,9 +54,7 @@ services:
 
   smart-home-app:
     container_name: smart-home-automation-system
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: rupaldraft/smart-home-automation:latest
     networks:
       - shas-network
     volumes:
@@ -65,7 +63,7 @@ services:
       - app-database
       - app-cache
     ports:
-      - "8080:8080"
+      - "8081:8080"
     env_file:
       - .env
 
