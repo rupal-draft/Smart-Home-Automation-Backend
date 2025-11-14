@@ -32,7 +32,10 @@ spec:
             periodSeconds: 10
           env:
             - name: SPRING_PROFILES_ACTIVE
-              value: "dev"
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: PROFILE
             - name: SPRING_DATASOURCE_URL
               value: "jdbc:postgresql://shas-postgres:5432/smart_home"
             - name: SPRING_DATASOURCE_USERNAME
@@ -49,3 +52,8 @@ spec:
               value: "shas-redis"
             - name: SPRING_DATA_REDIS_PORT
               value: "6379"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: JWT_SECRET
