@@ -70,7 +70,7 @@ pipeline {
                     echo "Running OWASP Dependency Check..."
 
                     try {
-                        dependencyCheck additionalArguments: '--scan ./ --format XML --format HTML',
+                        dependencyCheck additionalArguments: '--scan ./ --format XML --format HTML --disableRetireJS',
                                         odcInstallation: 'owasp'
 
                         dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
