@@ -44,7 +44,13 @@ pipeline {
             steps {
                 echo "Running SonarQube analysis..."
                 withSonarQubeEnv("Sonar") {
-                    sh "$SONAR_HOME/bin/sonar-scanner -Dsonar.projectName=Smart-Home-Automation-Backend -Dsonar.projectKey=shab -Dsonar.java.binaries=target/classes -X"
+                    sh """
+                        ${SONAR_HOME}/bin/sonar-scanner \
+                        -Dsonar.projectName=Smart-Home-Automation-Backend \
+                        -Dsonar.projectKey=shab \
+                        -Dsonar.java.binaries=target/classes \
+                        -X
+                    """
                 }
             }
         }
@@ -67,10 +73,8 @@ pipeline {
                         dependencyCheck additionalArguments: '--scan ./ --format XML --format HTML',
                                         odcInstallation: 'owasp'
 
-                        echo "Publishing Dependency Check XML report..."
                         dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
 
-                        echo "Publishing Dependency Check HTML report..."
                         publishHTML(target: [
                             reportName: 'OWASP Dependency-Check Report',
                             reportDir: '.',
@@ -85,7 +89,7 @@ pipeline {
                     } catch (err) {
                         echo "⚠️ OWASP Dependency Check encountered an error: ${err}"
                         echo "⚠️ Marking as warning only (build continues)..."
-                        currentBuild.result = 'SUCCESS' // Prevents unstable mark
+                        currentBuild.result = 'SUCCESS'
                     }
                 }
             }
@@ -93,25 +97,46 @@ pipeline {
 
         stage("Docker: Build Image") {
             steps {
-                echo "Building Docker image..."
-                sh "docker build -t smart-home-automation:latest ."
+                script {
+                    echo "Building Docker image..."
+
+                    // Generate a unique tag
+                    def tag = sh(script: "date +%s", returnStdout: true).trim()
+                    env.IMAGE_TAG = tag
+
+                    sh """
+                        docker build \
+                          -t smart-home-automation:${IMAGE_TAG} \
+                          -t smart-home-automation:latest \
+                          .
+                    """
+                }
             }
         }
 
         stage("Docker: Push to DockerHub") {
             steps {
-                echo "Tagging Docker image for DockerHub..."
-                sh "docker tag smart-home-automation:latest rupaldraft/smart-home-automation:latest"
-                echo "Logging in to DockerHub..."
-                withCredentials([usernamePassword(
-                        credentialsId: 'dockerHubCred',
-                        passwordVariable: 'dockerhubpass',
-                        usernameVariable: 'dockerhubuser')
+                script {
+                    echo "Pushing Docker images to DockerHub..."
+
+                    sh """
+                        docker tag smart-home-automation:${IMAGE_TAG} rupaldraft/smart-home-automation:${IMAGE_TAG}
+                        docker tag smart-home-automation:latest rupaldraft/smart-home-automation:latest
+                    """
+
+                    withCredentials([usernamePassword(
+                            credentialsId: 'dockerHubCred',
+                            passwordVariable: 'dockerhubpass',
+                            usernameVariable: 'dockerhubuser')
                     ]) {
-                    sh "docker login -u ${env.dockerhubuser} -p ${env.dockerhubpass}"
+                        sh "docker login -u ${dockerhubuser} -p ${dockerhubpass}"
+                    }
+
+                    sh """
+                        docker push rupaldraft/smart-home-automation:${IMAGE_TAG}
+                        docker push rupaldraft/smart-home-automation:latest
+                    """
                 }
-                echo "Pushing Docker image to DockerHub..."
-                sh "docker push rupaldraft/smart-home-automation:latest"
             }
         }
 
@@ -144,10 +169,8 @@ pipeline {
 
                     echo "Updating Kubernetes manifest with new image tag..."
 
-                    def imageTag = sh(script: "date +%s", returnStdout: true).trim()
-
                     sh """
-                        sed -i 's|image: rupaldraft/smart-home-automation:.*|image: rupaldraft/smart-home-automation:${imageTag}|g' k8s/deployment.yaml
+                        sed -i 's|image: rupaldraft/smart-home-automation:.*|image: rupaldraft/smart-home-automation:${IMAGE_TAG}|g' k8s/app-deployment.yaml
                     """
 
                     withCredentials([
@@ -160,8 +183,8 @@ pipeline {
                             git config user.name "${GIT_NAME}"
                             git config user.email "${GIT_EMAIL}"
 
-                            git add k8s/deployment.yaml
-                            git commit -m "CI: Update image tag to ${imageTag}" || true
+                            git add k8s/app-deployment.yaml
+                            git commit -m "CI: Update image tag to ${IMAGE_TAG}" || true
 
                             git remote set-url origin https://${GIT_NAME}:${GITHUB_PAT}@github.com/rupal-draft/Smart-Home-Automation-Backend.git
 
