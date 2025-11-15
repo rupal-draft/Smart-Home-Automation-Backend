@@ -138,10 +138,37 @@ pipeline {
             }
         }
 
-        stage("Docker: Deploy with Docker Compose") {
+        stage("GitOps: Update K8s Manifest with New Image Tag") {
             steps {
-                echo "Stopping and starting containers using Docker Compose..."
-                sh "docker-compose down && docker-compose --env-file .env up -d"
+                script {
+
+                    echo "Updating Kubernetes manifest with new image tag..."
+
+                    def imageTag = sh(script: "date +%s", returnStdout: true).trim()
+
+                    sh """
+                        sed -i 's|image: rupaldraft/smart-home-automation:.*|image: rupaldraft/smart-home-automation:${imageTag}|g' k8s/deployment.yaml
+                    """
+
+                    withCredentials([
+                        string(credentialsId: 'gitUserName', variable: 'GIT_NAME'),
+                        string(credentialsId: 'gitUserEmail', variable: 'GIT_EMAIL'),
+                        string(credentialsId: 'githubPAT', variable: 'GITHUB_PAT')
+                    ]) {
+
+                        sh """
+                            git config user.name "${GIT_NAME}"
+                            git config user.email "${GIT_EMAIL}"
+
+                            git add k8s/deployment.yaml
+                            git commit -m "CI: Update image tag to ${imageTag}" || true
+
+                            git remote set-url origin https://${GIT_NAME}:${GITHUB_PAT}@github.com/rupal-draft/Smart-Home-Automation-Backend.git
+
+                            git push origin main
+                        """
+                    }
+                }
             }
         }
 

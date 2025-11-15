@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: smart-home-app
-          image: rupaldraft/smart-home-automation:latest
+          image: rupaldraft/smart-home-automation:REPLACED_BY_JENKINS
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
