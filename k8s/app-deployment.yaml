@@ -15,7 +15,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: smart-home-app
-          image: rupaldraft/smart-home-automation:1763318626
+          image: rupaldraft/smart-home-automation:1763318707
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
