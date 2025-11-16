@@ -49,6 +49,7 @@ pipeline {
                         -Dsonar.projectName=Smart-Home-Automation-Backend \
                         -Dsonar.projectKey=shab \
                         -Dsonar.java.binaries=target/classes \
+                        -Dsonar.coverage.exclusions=** \
                         -X
                     """
                 }
