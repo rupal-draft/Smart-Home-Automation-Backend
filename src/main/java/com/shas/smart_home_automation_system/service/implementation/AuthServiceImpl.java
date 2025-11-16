@@ -59,7 +59,7 @@ public class AuthServiceImpl implements AuthService {
                     user.getRoles()
             );
 
-            log.info("User '{}' authenticated successfully", username);
+            log.info("User '{}' authenticated successfully with id: {}", username, user.getId());
 
             return jwtResponse;
 

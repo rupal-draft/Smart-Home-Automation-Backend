@@ -36,7 +36,7 @@ echo "==================================="
 echo " Installing ingress-nginx for KIND"
 echo "==================================="
 
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/kind/deploy.yaml
 
 echo "=== Waiting for ingress-nginx to be Ready ==="
 kubectl wait --namespace ingress-nginx \
