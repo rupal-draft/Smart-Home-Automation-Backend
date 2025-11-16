@@ -185,7 +185,7 @@ pipeline {
                             git config user.email "${GIT_EMAIL}"
 
                             git add k8s/app-deployment.yaml
-                            git commit -m "CI: Update image tag to ${IMAGE_TAG}" || true
+                            git commit -m "CI: Update image tag to ${IMAGE_TAG} [skip ci]" || true
 
                             git remote set-url origin https://${GIT_NAME}:${GITHUB_PAT}@github.com/rupal-draft/Smart-Home-Automation-Backend.git
 
